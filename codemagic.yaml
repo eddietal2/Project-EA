@@ -4,7 +4,7 @@ workflows:
     acquire-meta-frameworks:
         name: Acquire Meta DAT XCFramework
         # The 'mac_pro' instance type is fast and should complete quickly.
-        instance_type: mac_pro 
+        instance_type: mac_mini_m2 
         max_build_duration: 10
         environment:
             # Match the Xcode version you plan to use for your main build
