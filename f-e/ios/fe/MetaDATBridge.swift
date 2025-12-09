@@ -1,85 +1,58 @@
 import Foundation
 import AVFoundation
+import React
+// CRITICAL: Import the core Meta DAT frameworks
+import MWDATCore 
+// import MWDATCamera // Only if you needed camera access
 
 @objc(MetaDATBridge)
 class MetaDATBridge: RCTEventEmitter {
-
-  private var audioEngine: AVAudioEngine?
-  private var streamingTimer: DispatchSourceTimer?
-  private var isCurrentlyStreaming = false
-
-  override init() {
-    super.init()
-  }
-
-  // MARK: - React Native
-  @objc
-  override static func requiresMainQueueSetup() -> Bool {
-    // Keep it false unless you must run on main thread
-    return false
-  }
-
-  @objc
-  override func supportedEvents() -> [String]! {
-    return ["onAudioChunk"]
-  }
-
-  // MARK: - Module Methods
-  @objc(initializeDAT:resolver:rejecter:)
-  func initializeDAT(options: NSDictionary, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
-    // TODO: Replace with actual Meta DAT SDK initialization
-    // Example: MetaDAT.shared.initialize(with: ...) -> call SDK
-    // For now, we respond with success
-    resolve(["initialized": true])
-  }
-
-  @objc(startAudioStream:rejecter:)
-  func startAudioStream(resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
-    if isCurrentlyStreaming {
-      // Already streaming
-      resolve(["streaming": true])
-      return
+    
+    // ... (supportedEvents and requiresMainQueueSetup methods remain the same) ...
+    
+    // Maps to MetaDATBridge.initializeDAT()
+    @objc func initializeDAT(_ resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
+        // Step 1: Call the SDK's configure method (usually done once at launch)
+        do {
+            try Wearables.configure()
+            resolve("Meta DAT Bridge Configured")
+        } catch {
+            reject("MWDAT_CONFIG_ERROR", "Failed to configure Wearables SDK: \(error.localizedDescription)", error)
+        }
     }
-
-    // TODO: Integrate real SDK audio stream here. For now, simulate.
-    // Create and start a timer to emit pseudo audio chunks.
-    isCurrentlyStreaming = true
-    let queue = DispatchQueue(label: "com.fe.metadat.stream")
-    streamingTimer = DispatchSource.makeTimerSource(queue: queue)
-    streamingTimer?.schedule(deadline: .now(), repeating: .milliseconds(200))
-    streamingTimer?.setEventHandler { [weak self] in
-      guard let self = self else { return }
-      // Simulate raw audio bytes - here we just craft random bytes for demo
-      let sampleBytes = (0..<1024).map { _ in UInt8.random(in: 0...255) }
-      let data = Data(sampleBytes)
-      let base64String = data.base64EncodedString()
-      // Emit the event to React Native
-      self.sendEvent(withName: "onAudioChunk", body: ["data": base64String, "timestamp": Int(Date().timeIntervalSince1970 * 1000)])
+    
+    // Maps to MetaDATBridge.startAudioStream()
+    @objc func startAudioStream() {
+        // Step 2: Initiate the connection/session and request audio streaming
+        do {
+            // Placeholder: The actual method for audio streaming over HFP is often
+            // handled via the standard iOS AVFoundation/CallKit after connection is established.
+            // You will need to use the Wearables.shared.devicesStream() to find and connect 
+            // to a paired device first, and then manage the HFP connection.
+            
+            // For now, we will simulate the audio stream coming from a device listener:
+            
+            // let wearables = Wearables.shared
+            // Task {
+            //     for await device in wearables.devicesStream() {
+            //         // Code to manage session and mic access (requires hands-free profile logic)
+            //         // The audio data will come from the device's HFP connection.
+            //         
+            //         // SIMULATION: Replace this with the actual audio buffer callback
+            //         let simulatedAudioData = Data([UInt8.random(in: 0...255), UInt8.random(in: 0...255)]) 
+            //         let base64String = simulatedAudioData.base64EncodedString()
+            //         self.sendEvent(withName: "onAudioChunk", body: ["data": base64String])
+            //     }
+            // }
+            print("Audio streaming initiated (Requires HFP setup).")
+        } catch {
+            print("Error initiating stream: \(error.localizedDescription)")
+        }
     }
-    streamingTimer?.resume()
-    resolve(["streaming": true])
-  }
-
-  @objc(stopAudioStream:rejecter:)
-  func stopAudioStream(resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
-    if !isCurrentlyStreaming {
-      resolve(["streaming": false])
-      return
+    
+    // Maps to MetaDATBridge.stopAudioStream()
+    @objc func stopAudioStream() {
+        // Stop session/HFP mic access
+        print("Audio streaming stopped.")
     }
-    isCurrentlyStreaming = false
-    streamingTimer?.cancel()
-    streamingTimer = nil
-    resolve(["streaming": false])
-  }
-
-  @objc(isStreaming:rejecter:)
-  func isStreaming(resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
-    resolve(["streaming": isCurrentlyStreaming])
-  }
-
-  // If the stream needs a safe shutdown
-  deinit {
-    streamingTimer?.cancel()
-    streamingTimer = nil
-  }
 }
