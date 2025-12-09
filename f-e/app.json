@@ -19,7 +19,7 @@
       },
       "config": {
         "ios.podfile.properties": {
-          "post_install": "installer.pods_project.targets.each do |target|\\n  if target.name == 'Pods-f-e' # Replace 'f-e' with your project name\\n    target.build_configurations.each do |config|\\n      config.build_settings['OTHER_SWIFT_FLAGS'] ||= ['$(inherited)']\\n      config.build_settings['OTHER_SWIFT_FLAGS'] << '-DDEBUG'\\n    end\\n  end\\nend\\npod 'MetaWearablesDATCore', :git => 'https://github.com/facebook/meta-wearables-dat-ios.git', :tag => 'v1.0.0'\\n"
+          "post_install": "installer.pods_project.targets.each do |target|\\n  if target.name == 'Pods-f-e' # Replace 'f-e' with your project name\\n    target.build_configurations.each do |config|\\n      config.build_settings['OTHER_SWIFT_FLAGS'] ||= ['$(inherited)']\\n      config.build_settings['OTHER_SWIFT_FLAGS'] << '-DDEBUG'\\n    end\\n  end\\nend\\n"
         }
       }
     },
