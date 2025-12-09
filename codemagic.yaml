@@ -8,7 +8,7 @@ workflows:
         max_build_duration: 10
         environment:
             # Match the Xcode version you plan to use for your main build
-            xcode: 14.0 
+            xcode: 16.0
         
         scripts:
             - name: Setup Swift Package Manifest
