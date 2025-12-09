@@ -6,11 +6,10 @@ workflows:
         instance_type: mac_mini_m2 
         max_build_duration: 10
         environment:
-            # Using 'latest' for maximum compatibility with the build machine
             xcode: latest 
         
         scripts:
-            - name: Setup Swift Package Manifest (FIXED SYNTAX)
+            - name: Setup Swift Package Manifest
               script: |
                 # Variables
                 SPM_REPO="https://github.com/facebook/meta-wearables-dat-ios"
@@ -19,22 +18,21 @@ workflows:
                 mkdir -p $CM_BUILD_DIR/temp_package
                 cd $CM_BUILD_DIR/temp_package
                 
-                # CRITICAL FIX: The URL is now correctly wrapped in double quotes (") 
-                # inside the cat <<EOF block for valid Swift syntax.
+                # Using 'cat <<EOF' and Swift tools version 5.7 (FIXED SYNTAX)
                 cat <<EOF > Package.swift
-                // swift-tools-version:5.7
-                import PackageDescription
+      // swift-tools-version:5.7
+      import PackageDescription
+      
+      let package = Package(
+          name: "TempPackage",
+          dependencies: [
+              .package(url: "$SPM_REPO", .upToNextMajor(from: "0.1.0"))
+          ],
+          targets: [.target(name: "TempPackage", dependencies: [])]
+      )
+      EOF
                 
-                let package = Package(
-                    name: "TempPackage",
-                    dependencies: [
-                        .package(url: "$SPM_REPO", .upToNextMajor(from: "0.1.0"))
-                    ],
-                    targets: [.target(name: "TempPackage", dependencies: [])]
-                )
-                EOF
-                
-            - name: Resolve Swift Package and Find Binaries
+            - name: Resolve Swift Package and Find Binaries (FIXED SEARCH)
               script: |
                 cd $CM_BUILD_DIR/temp_package
                 
@@ -42,24 +40,46 @@ workflows:
                 echo "Resolving Swift Package Dependencies..."
                 swift package resolve
                 
-                # 3. Locate the frameworks in the SPM cache
-                SPM_CACHE_ROOT="$HOME/Library/Caches/org.swift.swiftpm"
+                # 3. Locate the frameworks in the SPM cache/local build directory
                 FRAMEWORK_NAME="MWDATCore.xcframework"
                 OUTPUT_DIR="$CM_BUILD_DIR/meta_dat_frameworks"
                 
-                echo "Locating $FRAMEWORK_NAME in SPM cache..."
-                # Find the directory containing the core framework
-                FRAMEWORK_PATH=$(find $SPM_CACHE_ROOT -name "$FRAMEWORK_NAME" -type d | head -n 1)
+                echo "Attempting to locate $FRAMEWORK_NAME..."
+                
+                # Search 1: Search within the local Swift package build directory
+                FRAMEWORK_PATH=$(find .build -name "$FRAMEWORK_NAME" -type d | head -n 1)
 
                 if [ -z "$FRAMEWORK_PATH" ]; then
-                    echo "Error: Could not locate $FRAMEWORK_NAME. Check repository accessibility or package name."
+                    # Search 2: Search the global SPM cache
+                    SPM_CACHE_ROOT="$HOME/Library/Caches/org.swift.swiftpm"
+                    echo "Not found in local build folder. Searching global cache at $SPM_CACHE_ROOT"
+                    FRAMEWORK_PATH=$(find $SPM_CACHE_ROOT -name "$FRAMEWORK_NAME" -type d | head -n 1)
+                fi
+
+                if [ -z "$FRAMEWORK_PATH" ]; then
+                    echo "Error: Could not locate $FRAMEWORK_NAME."
+                    echo "Debugging: Listing contents of .build:"
+                    ls -R .build
                     exit 1
                 fi
                 
                 mkdir -p $OUTPUT_DIR
                 
                 # 4. Copy the required frameworks to the output folder
-                FRAMEWORK_PARENT_DIR=$(dirname "$FRAMEWORK_PATH")
+                # We need the parent directory of the found path
+                if [[ "$FRAMEWORK_PATH" == *".build"* ]]; then
+                    # If found locally, FRAMEWORK_PATH starts with .build
+                    FRAMEWORK_PARENT_DIR=$(dirname "$FRAMEWORK_PATH")
+                    # Change directory context for copying, then back to temp_package
+                    cd $FRAMEWORK_PARENT_DIR
+                    FRAMEWORK_PARENT_DIR=$(pwd -P)
+                    cd $CM_BUILD_DIR/temp_package
+                else
+                    # If found in the cache, use the standard method
+                    FRAMEWORK_PARENT_DIR=$(dirname "$FRAMEWORK_PATH")
+                fi
+
+                # We need to ensure we copy all frameworks in the same parent directory
                 echo "Copying XCFrameworks from $FRAMEWORK_PARENT_DIR to $OUTPUT_DIR"
                 
                 # The core framework
