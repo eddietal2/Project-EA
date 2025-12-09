@@ -3,10 +3,12 @@ workflows:
     
     acquire-meta-frameworks:
         name: Acquire Meta DAT XCFramework
+        # The 'mac_pro' instance type is fast and should complete quickly.
         instance_type: mac_mini_m2 
         max_build_duration: 10
         environment:
-            xcode: latest 
+            # Match the Xcode version you plan to use for your main build
+            xcode: latest
         
         scripts:
             - name: Setup Swift Package Manifest
@@ -14,24 +16,22 @@ workflows:
                 # Variables
                 SPM_REPO="https://github.com/facebook/meta-wearables-dat-ios"
                 
-                # 1. Create a dummy package directory
+                # 1. Create a dummy Swift Package manifest to define the dependency
                 mkdir -p $CM_BUILD_DIR/temp_package
                 cd $CM_BUILD_DIR/temp_package
                 
-                # CORRECTED: Use cat <<EOF to eliminate leading whitespace, 
-                # and use a modern Swift tools version.
-                cat <<EOF > Package.swift
-// swift-tools-version:5.7
-import PackageDescription
+                echo '
+                  // swift-tools-version:5.3
+                  import PackageDescription
 
-let package = Package(
-    name: "TempPackage",
-    dependencies: [
-        .package(url: "'"$SPM_REPO"'", .upToNextMajor(from: "0.1.0"))
-    ],
-    targets: [.target(name: "TempPackage", dependencies: [])]
-)
-EOF
+                  let package = Package(
+                      name: "TempPackage",
+                      dependencies: [
+                          .package(url: "'"$SPM_REPO"'", .upToNextMajor(from: "0.1.0"))
+                      ],
+                      targets: [.target(name: "TempPackage", dependencies: [])]
+                  )
+                ' > Package.swift
                 
             - name: Resolve Swift Package and Find Binaries
               script: |
@@ -42,30 +42,28 @@ EOF
                 swift package resolve
                 
                 # 3. Locate the MWDATCore.xcframework file in the SPM cache
-                # We search a broader path as the exact cache location can vary slightly
                 SPM_CACHE_ROOT="$HOME/Library/Caches/org.swift.swiftpm"
                 FRAMEWORK_NAME="MWDATCore.xcframework"
-                OUTPUT_DIR="$CM_BUILD_DIR/meta_dat_frameworks"
                 
                 echo "Locating $FRAMEWORK_NAME in SPM cache..."
-                # Find the directory containing the framework
                 FRAMEWORK_PATH=$(find $SPM_CACHE_ROOT -name "$FRAMEWORK_NAME" -type d | head -n 1)
 
                 if [ -z "$FRAMEWORK_PATH" ]; then
-                    echo "Error: Could not locate $FRAMEWORK_NAME. Check if the Meta SDK repository is accessible."
+                    echo "Error: Could not locate $FRAMEWORK_NAME."
                     exit 1
                 fi
                 
+                OUTPUT_DIR="$CM_BUILD_DIR/meta_dat_frameworks"
                 mkdir -p $OUTPUT_DIR
                 
                 # 4. Copy the required frameworks to the output folder
                 FRAMEWORK_PARENT_DIR=$(dirname "$FRAMEWORK_PATH")
                 echo "Copying XCFrameworks from $FRAMEWORK_PARENT_DIR to $OUTPUT_DIR"
                 
-                # The core framework is mandatory
+                # The core framework
                 cp -R "$FRAMEWORK_PARENT_DIR"/MWDATCore.xcframework $OUTPUT_DIR/
                 
-                # Check for and copy the camera framework if it was downloaded
+                # Optionally copy the camera framework if needed
                 if [ -d "$FRAMEWORK_PARENT_DIR/MWDATCamera.xcframework" ]; then
                     cp -R "$FRAMEWORK_PARENT_DIR"/MWDATCamera.xcframework $OUTPUT_DIR/
                     echo "Copied MWDATCore.xcframework and MWDATCamera.xcframework"
@@ -80,4 +78,5 @@ EOF
                 echo "Successfully created meta_dat_frameworks.zip at $CM_BUILD_DIR"
         
         artifacts:
+            # This is the file you will download from the Codemagic build screen
             - $CM_BUILD_DIR/meta_dat_frameworks.zip
