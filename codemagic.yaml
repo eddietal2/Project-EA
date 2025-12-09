@@ -1,92 +1,84 @@
 workflows:
-  acquire-meta-frameworks:
-    name: Acquire Meta DAT XCFramework
-    instance_type: mac_mini_m2
-    max_build_duration: 10
-    environment:
-      xcode: latest
-    scripts:
-      - name: Setup Swift Package Manifest
-        script: |
-          # Variables
-          SPM_REPO="https://github.com/facebook/meta-wearables-dat-ios"
+    # Your existing 'react-native-ios' workflow goes here...
+    
+    acquire-meta-frameworks:
+        name: Acquire Meta DAT XCFramework
+        instance_type: mac_mini_m2 
+        max_build_duration: 10
+        environment:
+            # Using 'latest' to ensure a supported Swift/Xcode toolchain is used.
+            xcode: latest 
+        
+        scripts:
+            - name: Setup Swift Package Manifest (FIXED)
+              script: |
+                # Variables
+                SPM_REPO="https://github.com/facebook/meta-wearables-dat-ios"
+                
+                # 1. Create a dummy package directory
+                mkdir -p $CM_BUILD_DIR/temp_package
+                cd $CM_BUILD_DIR/temp_package
+                
+                # CRITICAL FIX: Using 'cat <<EOF' to prevent the leading whitespace 
+                # error in the Package.swift file and using Swift tools version 5.7.
+                cat <<EOF > Package.swift
+                // swift-tools-version:5.7
+                import PackageDescription
 
-          # 1. Create a dummy Swift Package manifest to define the dependency
-          mkdir -p $CM_BUILD_DIR/temp_package
-          cd $CM_BUILD_DIR/temp_package
+                let package = Package(
+                    name: "TempPackage",
+                    dependencies: [
+                        .package(url: "'"$SPM_REPO"'", .upToNextMajor(from: "0.1.0"))
+                    ],
+                    targets: [.target(name: "TempPackage", dependencies: [])]
+                )
+                EOF
+                
+            - name: Resolve Swift Package and Find Binaries
+              script: |
+                cd $CM_BUILD_DIR/temp_package
+                
+                # 2. Resolve dependencies, which downloads the XCFramework binaries
+                echo "Resolving Swift Package Dependencies..."
+                swift package resolve
+                
+                # 3. Locate the frameworks in the SPM cache
+                SPM_CACHE_ROOT="$HOME/Library/Caches/org.swift.swiftpm"
+                FRAMEWORK_NAME="MWDATCore.xcframework"
+                OUTPUT_DIR="$CM_BUILD_DIR/meta_dat_frameworks"
+                
+                echo "Locating $FRAMEWORK_NAME in SPM cache..."
+                # Find the directory containing the core framework
+                FRAMEWORK_PATH=$(find $SPM_CACHE_ROOT -name "$FRAMEWORK_NAME" -type d | head -n 1)
 
-          echo '
-            // swift-tools-version:5.3
-            import PackageDescription
+                if [ -z "$FRAMEWORK_PATH" ]; then
+                    echo "Error: Could not locate $FRAMEWORK_NAME. Check repository accessibility or package name."
+                    exit 1
+                fi
+                
+                mkdir -p $OUTPUT_DIR
+                
+                # 4. Copy the required frameworks to the output folder
+                FRAMEWORK_PARENT_DIR=$(dirname "$FRAMEWORK_PATH")
+                echo "Copying XCFrameworks from $FRAMEWORK_PARENT_DIR to $OUTPUT_DIR"
+                
+                # The core framework
+                cp -R "$FRAMEWORK_PARENT_DIR"/MWDATCore.xcframework $OUTPUT_DIR/
+                
+                # Check for and copy the camera framework if it was downloaded
+                if [ -d "$FRAMEWORK_PARENT_DIR/MWDATCamera.xcframework" ]; then
+                    cp -R "$FRAMEWORK_PARENT_DIR"/MWDATCamera.xcframework $OUTPUT_DIR/
+                    echo "Copied MWDATCore.xcframework and MWDATCamera.xcframework"
+                else
+                    echo "Copied MWDATCore.xcframework only."
+                fi
 
-            let package = Package(
-                name: "TempPackage",
-                dependencies: [
-                    .package(url: "'"$SPM_REPO"'", .upToNextMajor(from: "0.1.0"))
-                ],
-                targets: [.target(name: "TempPackage", dependencies: [])]
-            )
-          ' > Package.swift
-      - name: Resolve Swift Package and Find Binaries
-        script: >
-          cd $CM_BUILD_DIR/temp_package
-
-
-          # 2. Resolve dependencies, which downloads the XCFramework binaries
-
-          echo "Resolving Swift Package Dependencies..."
-
-          swift package resolve
-
-
-          # 3. Locate the MWDATCore.xcframework file in the SPM cache
-
-          SPM_CACHE_ROOT="$HOME/Library/Caches/org.swift.swiftpm"
-
-          FRAMEWORK_NAME="MWDATCore.xcframework"
-
-
-          echo "Locating $FRAMEWORK_NAME in SPM cache..."
-
-          FRAMEWORK_PATH=$(find $SPM_CACHE_ROOT -name "$FRAMEWORK_NAME" -type d
-          | head -n 1)
-
-
-          if [ -z "$FRAMEWORK_PATH" ]; then
-              echo "Error: Could not locate $FRAMEWORK_NAME."
-              exit 1
-          fi
-
-
-          OUTPUT_DIR="$CM_BUILD_DIR/meta_dat_frameworks"
-
-          mkdir -p $OUTPUT_DIR
-
-
-          # 4. Copy the required frameworks to the output folder
-
-          FRAMEWORK_PARENT_DIR=$(dirname "$FRAMEWORK_PATH")
-
-          echo "Copying XCFrameworks from $FRAMEWORK_PARENT_DIR to $OUTPUT_DIR"
-
-
-          # The core framework
-
-          cp -R "$FRAMEWORK_PARENT_DIR"/MWDATCore.xcframework $OUTPUT_DIR/
-
-
-          # Optionally copy the camera framework if needed
-
-          if [ -d "$FRAMEWORK_PARENT_DIR/MWDATCamera.xcframework" ]; then
-              cp -R "$FRAMEWORK_PARENT_DIR"/MWDATCamera.xcframework $OUTPUT_DIR/
-              echo "Copied MWDATCore.xcframework and MWDATCamera.xcframework"
-          else
-              echo "Copied MWDATCore.xcframework only."
-          fi
-      - name: Zip Artifact for Download
-        script: |
-          cd $CM_BUILD_DIR
-          zip -r meta_dat_frameworks.zip meta_dat_frameworks
-          echo "Successfully created meta_dat_frameworks.zip at $CM_BUILD_DIR"
-    artifacts:
-      - $CM_BUILD_DIR/meta_dat_frameworks.zip
+            - name: Zip Artifact for Download
+              script: |
+                cd $CM_BUILD_DIR
+                zip -r meta_dat_frameworks.zip meta_dat_frameworks
+                echo "Successfully created meta_dat_frameworks.zip at $CM_BUILD_DIR"
+        
+        artifacts:
+            # You will download this .zip file after the build completes
+            - $CM_BUILD_DIR/meta_dat_frameworks.zip
