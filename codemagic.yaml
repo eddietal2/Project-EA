@@ -20,17 +20,17 @@ workflows:
                 
                 # Using 'cat <<EOF' and Swift tools version 5.7 (FIXED SYNTAX)
                 cat <<EOF > Package.swift
-      // swift-tools-version:5.7
-      import PackageDescription
-      
-      let package = Package(
-          name: "TempPackage",
-          dependencies: [
-              .package(url: "$SPM_REPO", .upToNextMajor(from: "0.1.0"))
-          ],
-          targets: [.target(name: "TempPackage", dependencies: [])]
-      )
-      EOF
+                // swift-tools-version:5.7
+                import PackageDescription
+                
+                let package = Package(
+                    name: "TempPackage",
+                    dependencies: [
+                        .package(url: "$SPM_REPO", .upToNextMajor(from: "0.1.0"))
+                    ],
+                    targets: [.target(name: "TempPackage", dependencies: [])]
+                )
+                EOF
                 
             - name: Resolve Swift Package and Find Binaries (FIXED SEARCH)
               script: |
