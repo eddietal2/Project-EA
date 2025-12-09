@@ -6,11 +6,11 @@ workflows:
         instance_type: mac_mini_m2 
         max_build_duration: 10
         environment:
-            # Using 'latest' to ensure a supported Swift/Xcode toolchain is used.
+            # Using 'latest' for maximum compatibility with the build machine
             xcode: latest 
         
         scripts:
-            - name: Setup Swift Package Manifest (FIXED)
+            - name: Setup Swift Package Manifest (FIXED SYNTAX)
               script: |
                 # Variables
                 SPM_REPO="https://github.com/facebook/meta-wearables-dat-ios"
@@ -19,16 +19,16 @@ workflows:
                 mkdir -p $CM_BUILD_DIR/temp_package
                 cd $CM_BUILD_DIR/temp_package
                 
-                # CRITICAL FIX: Using 'cat <<EOF' to prevent the leading whitespace 
-                # error in the Package.swift file and using Swift tools version 5.7.
+                # CRITICAL FIX: The URL is now correctly wrapped in double quotes (") 
+                # inside the cat <<EOF block for valid Swift syntax.
                 cat <<EOF > Package.swift
                 // swift-tools-version:5.7
                 import PackageDescription
-
+                
                 let package = Package(
                     name: "TempPackage",
                     dependencies: [
-                        .package(url: "'"$SPM_REPO"'", .upToNextMajor(from: "0.1.0"))
+                        .package(url: "$SPM_REPO", .upToNextMajor(from: "0.1.0"))
                     ],
                     targets: [.target(name: "TempPackage", dependencies: [])]
                 )
