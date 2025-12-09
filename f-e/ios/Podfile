@@ -57,4 +57,9 @@ target 'fe' do
       :ccache_enabled => ccache_enabled?(podfile_properties),
     )
   end
+
+  # --- BEGIN Meta DAT SDK SPM Workaround ---
+  # Since direct eas.json SPM is disallowed, we use CocoaPods to pull from Git
+  pod 'MWDATCore', :git => 'https://github.com/facebook/meta-wearables-dat-ios.git', :branch => 'main'
+  # --- END Meta DAT SDK SPM Workaround ---
 end
