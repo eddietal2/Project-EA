@@ -1,26 +1,82 @@
 workflows:
-    react-native-ios:
-        name: React Native iOS
-        max_build_duration: 120
-        instance_type: mac_pro
+    # Your existing 'react-native-ios' workflow goes here...
+    
+    acquire-meta-frameworks:
+        name: Acquire Meta DAT XCFramework
+        # The 'mac_pro' instance type is fast and should complete quickly.
+        instance_type: mac_pro 
+        max_build_duration: 10
         environment:
-            vars:
-                XCODE_WORKSPACE: "ios/ios_simulator_build.xcworkspace" # <-- Put the name of your Xcode workspace here
-                XCODE_SCHEME: "ios_simulator_build" # <-- Put the name of your Xcode scheme here
-            node: v16.11.1
-            xcode: 13.0
-            cocoapods: default
+            # Match the Xcode version you plan to use for your main build
+            xcode: 13.0 
+        
         scripts:
-            - name: Install npm dependencies
+            - name: Setup Swift Package Manifest
               script: |
-                npm install
-            - name: Install CocoaPods dependencies
+                # Variables
+                SPM_REPO="https://github.com/facebook/meta-wearables-dat-ios"
+                
+                # 1. Create a dummy Swift Package manifest to define the dependency
+                mkdir -p $CM_BUILD_DIR/temp_package
+                cd $CM_BUILD_DIR/temp_package
+                
+                echo '
+                  // swift-tools-version:5.3
+                  import PackageDescription
+
+                  let package = Package(
+                      name: "TempPackage",
+                      dependencies: [
+                          .package(url: "'"$SPM_REPO"'", .upToNextMajor(from: "0.1.0"))
+                      ],
+                      targets: [.target(name: "TempPackage", dependencies: [])]
+                  )
+                ' > Package.swift
+                
+            - name: Resolve Swift Package and Find Binaries
               script: |
-                cd ios && pod install
-            - name: Build ipa for distribution
+                cd $CM_BUILD_DIR/temp_package
+                
+                # 2. Resolve dependencies, which downloads the XCFramework binaries
+                echo "Resolving Swift Package Dependencies..."
+                swift package resolve
+                
+                # 3. Locate the MWDATCore.xcframework file in the SPM cache
+                SPM_CACHE_ROOT="$HOME/Library/Caches/org.swift.swiftpm"
+                FRAMEWORK_NAME="MWDATCore.xcframework"
+                
+                echo "Locating $FRAMEWORK_NAME in SPM cache..."
+                FRAMEWORK_PATH=$(find $SPM_CACHE_ROOT -name "$FRAMEWORK_NAME" -type d | head -n 1)
+
+                if [ -z "$FRAMEWORK_PATH" ]; then
+                    echo "Error: Could not locate $FRAMEWORK_NAME."
+                    exit 1
+                fi
+                
+                OUTPUT_DIR="$CM_BUILD_DIR/meta_dat_frameworks"
+                mkdir -p $OUTPUT_DIR
+                
+                # 4. Copy the required frameworks to the output folder
+                FRAMEWORK_PARENT_DIR=$(dirname "$FRAMEWORK_PATH")
+                echo "Copying XCFrameworks from $FRAMEWORK_PARENT_DIR to $OUTPUT_DIR"
+                
+                # The core framework
+                cp -R "$FRAMEWORK_PARENT_DIR"/MWDATCore.xcframework $OUTPUT_DIR/
+                
+                # Optionally copy the camera framework if needed
+                if [ -d "$FRAMEWORK_PARENT_DIR/MWDATCamera.xcframework" ]; then
+                    cp -R "$FRAMEWORK_PARENT_DIR"/MWDATCamera.xcframework $OUTPUT_DIR/
+                    echo "Copied MWDATCore.xcframework and MWDATCamera.xcframework"
+                else
+                    echo "Copied MWDATCore.xcframework only."
+                fi
+
+            - name: Zip Artifact for Download
               script: |
-                xcodebuild build -workspace "$XCODE_WORKSPACE" -scheme "$XCODE_SCHEME" -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 12 Pro,OS=14.5' -configuration Debug CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO 
+                cd $CM_BUILD_DIR
+                zip -r meta_dat_frameworks.zip meta_dat_frameworks
+                echo "Successfully created meta_dat_frameworks.zip at $CM_BUILD_DIR"
+        
         artifacts:
-            - /tmp/xcodebuild_logs/*.log
-            - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.app
-            - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.dSYM
+            # This is the file you will download from the Codemagic build screen
+            - $CM_BUILD_DIR/meta_dat_frameworks.zip
