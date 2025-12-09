@@ -52,7 +52,8 @@
           }
         }
       ],
-      "expo-build-properties"
+      "expo-build-properties",
+      "./plugins/MetaDat.js"
     ],
     "experiments": {
       "typedRoutes": true,
