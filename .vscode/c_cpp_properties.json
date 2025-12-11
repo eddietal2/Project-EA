@@ -7,7 +7,6 @@
         "${workspaceFolder}/f-e/ios/**",
         "${workspaceFolder}/f-e/ios/Pods/**",
         "${workspaceFolder}/f-e/node_modules/**",
-        "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include",
         "/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk/usr/include",
         "/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk/System/Library/Frameworks"
       ],
